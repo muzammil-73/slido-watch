@@ -1,10 +1,12 @@
- name: slido-watch
+name: slido-watch
+
 on:
   workflow_dispatch:
     inputs:
       code:
         description: Slido code
         required: true
+
 jobs:
   watch:
     runs-on: ubuntu-latest
@@ -12,8 +14,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - run: pip install playwright requests && playwright install --with-deps chromium
+        with:
+          python-version: "3.12"
+      - run: pip install playwright requests
+      - run: playwright install --with-deps chromium
       - run: python slido_watch.py "$CODE"
         env:
           CODE: ${{ inputs.code }}
