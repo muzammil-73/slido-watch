@@ -4,8 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       code:
-        description: Slido code
+        description: Slido URL (or code)
         required: true
+
+concurrency:
+  group: slido-watch
+  cancel-in-progress: true
 
 jobs:
   watch:
