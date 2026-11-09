@@ -11,13 +11,13 @@ jobs:
   watch:
     runs-on: ubuntu-latest
     timeout-minutes: 95
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.49.0-noble
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install playwright requests
-      - run: playwright install --with-deps chromium
+      - run: pip install playwright==1.49.0 requests
+        env:
+          PIP_BREAK_SYSTEM_PACKAGES: "1"
       - run: python slido_watch.py "$CODE"
         env:
           CODE: ${{ inputs.code }}
