@@ -14,7 +14,8 @@ def notify(msg):
 with sync_playwright() as p:
     page = p.chromium.launch().new_page()
     page.goto(f"https://app.sli.do/event/{code}")
-    page.wait_for_timeout(5000)
+    page.wait_for_timeout(8000)
+    print("After wait:", page.url)
     print("Loaded:", page.url, "|", page.title())
     notify(f"Watching Slido {code} for 90 min")
 
