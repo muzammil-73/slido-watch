@@ -1,37 +1,100 @@
 import os, sys, time, requests
 from playwright.sync_api import sync_playwright
 
+SERVER = "https://ntfy-me.com"
 TOPIC = os.environ["NTFY_TOPIC"]
 code = sys.argv[1].strip().lstrip("#")
 DURATION = 90 * 60
 
 def notify(msg):
     try:
-        requests.post(f"https://ntfy-me.com//{TOPIC}", data=msg.encode(), timeout=10)
+        requests.post(f"{SERVER}/{TOPIC}", data=msg.encode(), timeout=10)
     except Exception as e:
-        print("ntfy failed:", e)
+        print("ntfy failed:", e, flush=True)
+
+# Runs inside the page: counts every time the "Poll has been activated" alert appears
+INSTALL_JS = """
+() => {
+  if (window.__w) return;
+  window.__w = {fired: 0};
+  new MutationObserver(muts => {
+    for (const m of muts) {
+      const txt = (m.target.textContent || '') + Array.from(m.addedNodes).map(n => n.textContent || '').join('');
+      if (txt.includes('Poll has been activated')) window.__w.fired++;
+    }
+  }).observe(document.documentElement, {childList: true, subtree: true, characterData: true});
+}
+"""
+
+PANEL_OPEN_JS = """
+() => {
+  const p = document.querySelector('#live-tabpanel-polls');
+  return !!p && !p.hidden && p.children.length > 0;
+}
+"""
+
+PAGE_READY_JS = "() => !!document.querySelector('#live-tabpanel-questions, #live-tabpanel-polls')"
 
 with sync_playwright() as p:
-    page = p.chromium.launch().new_page()
-    page.goto(f"https://app.sli.do/event/{code}")
-    page.wait_for_timeout(8000)
-    print("After wait:", page.url)
-    print("Loaded:", page.url, "|", page.title())
+    browser = p.chromium.launch()
+    ctx = browser.new_context(
+        viewport={"width": 1280, "height": 900},
+        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                   "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    )
+    page = ctx.new_page()
+
+    def load():
+        page.goto(f"https://app.sli.do/event/{code}", wait_until="domcontentloaded")
+        try:
+            page.wait_for_selector("#live-tabpanel-polls", state="attached", timeout=30000)
+        except Exception:
+            print("Panel not found after 30s", flush=True)
+        print("Loaded:", page.url[:120], flush=True)
+
+    load()
     notify(f"Watching Slido {code} for 90 min")
 
-    end, notified, last_log = time.time() + DURATION, False, 0
+    end = time.time() + DURATION
+    last_open, last_fired = False, 0
+    last_log, not_ready_since = 0, None
+
     while time.time() < end:
         try:
-            has_poll = page.locator("#live-tabpanel-polls:not([hidden])").count() > 0
+            page.evaluate(INSTALL_JS)
+            ready = page.evaluate(PAGE_READY_JS)
+            is_open = page.evaluate(PANEL_OPEN_JS)
+            fired = page.evaluate("() => (window.__w ? window.__w.fired : 0)")
         except Exception as e:
-            print("check failed:", e)
-            has_poll = notified
-        if has_poll and not notified:
+            print("check failed:", e, flush=True)
+            time.sleep(1)
+            continue
+
+        # Reload if the page never loaded properly
+        if not ready:
+            not_ready_since = not_ready_since or time.time()
+            if time.time() - not_ready_since > 30:
+                print("Page not ready for 30s, reloading", flush=True)
+                load()
+                not_ready_since = None
+                last_open, last_fired = False, 0
+                continue
+        else:
+            not_ready_since = None
+
+        if (is_open and not last_open) or fired > last_fired:
             notify("New Slido poll!")
-            print("POLL DETECTED")
-        notified = has_poll
-        if time.time() - last_log > 30:
-            print(f"alive, poll_visible={has_poll}")
+            print("POLL DETECTED", f"(panel_open={is_open}, alerts={fired})", flush=True)
+
+        if is_open != last_open:
+            print("State change: poll_open =", is_open, flush=True)
+
+        last_open, last_fired = is_open, fired
+
+        if time.time() - last_log > 15:
+            print(f"alive | ready={ready} poll_open={is_open} alerts={fired}", flush=True)
             last_log = time.time()
-        time.sleep(2)
+
+        time.sleep(1)
+
     notify("Slido watcher finished")
