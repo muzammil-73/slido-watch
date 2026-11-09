@@ -36,7 +36,7 @@ PANEL_OPEN_JS = """
 PAGE_READY_JS = "() => !!document.querySelector('#live-tabpanel-questions, #live-tabpanel-polls')"
 
 with sync_playwright() as p:
-    browser = p.chromium.launch()
+    browser = p.chromium.launch(args=["--disable-blink-features=AutomationControlled"])
     ctx = browser.new_context(
         viewport={"width": 1280, "height": 900},
         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -45,15 +45,30 @@ with sync_playwright() as p:
     page = ctx.new_page()
 
     def load():
-        page.goto(f"https://app.sli.do/event/{code}", wait_until="domcontentloaded")
+        resp = page.goto(f"https://app.sli.do/event/{code}", wait_until="domcontentloaded")
+        print("HTTP status:", resp.status if resp else None, flush=True)
         try:
             page.wait_for_selector("#live-tabpanel-polls", state="attached", timeout=30000)
         except Exception:
             print("Panel not found after 30s", flush=True)
-        print("Loaded:", page.url[:120], flush=True)
+        print("Loaded:", page.url[:100], flush=True)
+        print("Title:", page.title(), flush=True)
+        try:
+            print("Body:", page.inner_text("body")[:300].replace("\n", " | "), flush=True)
+        except Exception as e:
+            print("Body read failed:", e, flush=True)
 
     load()
-    notify(f"Watching Slido {code} for 90 min")
+
+    try:
+        ready_at_start = page.evaluate(PAGE_READY_JS)
+    except Exception:
+        ready_at_start = False
+
+    if ready_at_start:
+        notify(f"Watching Slido {code} for 90 min")
+    else:
+        notify(f"Slido page failed to load for {code}, not watching yet")
 
     end = time.time() + DURATION
     last_open, last_fired = False, 0
