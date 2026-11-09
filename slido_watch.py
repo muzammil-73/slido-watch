@@ -7,7 +7,7 @@ DURATION = 90 * 60
 
 def notify(msg):
     try:
-        requests.post(f"https://ntfy.sh/{TOPIC}", data=msg.encode(), timeout=10)
+        requests.post(f"hhttps://ntfy-me.com//{TOPIC}", data=msg.encode(), timeout=10)
     except Exception as e:
         print("ntfy failed:", e)
 
