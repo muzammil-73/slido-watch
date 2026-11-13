@@ -9,7 +9,7 @@ if code.startswith("http"):
 else:
     URL = "https://app.sli.do/event/" + code.lstrip("#")
 DURATION = 90 * 60
-WATCHER_NAME = "A A"
+WATCHER_NAME = "a"
 
 
 def notify(msg, title="Slido watcher", priority="high"):
@@ -36,7 +36,7 @@ FIRED_JS = "() => (window.__w ? window.__w.fired : 0)"
 
 
 def try_join(page):
-    # Handles both login screens: "Join anonymously" or "Full name" + "Join slido"
+    # Handles both login screens: "Join anonymously" or "Full name" + checkbox + "Join slido"
     try:
         anon = page.get_by_text("Join anonymously")
         if anon.count() > 0:
@@ -48,6 +48,16 @@ def try_join(page):
             box = page.locator("input[type='text'], input:not([type])").first
             box.click(timeout=5000)
             box.press_sequentially(WATCHER_NAME, delay=80)
+            page.wait_for_timeout(300)
+            try:
+                label = page.get_by_text("I agree to use my profile details")
+                if label.count() > 0:
+                    cb = page.locator("input[type='checkbox']").first
+                    if cb.count() > 0 and not cb.is_checked():
+                        label.first.click(timeout=3000)
+                        print("Ticked agree box (watcher only)", flush=True)
+            except Exception as e:
+                print("checkbox failed:", str(e)[:150], flush=True)
             page.wait_for_timeout(500)
             btn.first.click(timeout=8000)
             print("Typed name and clicked Join slido (watcher only)", flush=True)
