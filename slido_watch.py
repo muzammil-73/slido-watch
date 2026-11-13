@@ -34,6 +34,19 @@ PAGE_READY_JS = "() => !!document.querySelector('#live-tabpanel-questions, #live
 FIRED_JS = "() => (window.__w ? window.__w.fired : 0)"
 
 
+def try_join(page):
+    # Clicks "Join anonymously" only if that login screen is showing
+    try:
+        btn = page.get_by_text("Join anonymously")
+        if btn.count() > 0:
+            btn.first.click(timeout=5000)
+            print("Clicked Join anonymously (watcher only)", flush=True)
+            return True
+    except Exception as e:
+        print("join failed:", e, flush=True)
+    return False
+
+
 def run():
     with sync_playwright() as p:
         browser = p.chromium.launch(args=["--disable-blink-features=AutomationControlled"])
@@ -50,6 +63,12 @@ def run():
                 print("HTTP status:", status, flush=True)
             except Exception as e:
                 print("goto failed:", e, flush=True)
+            try:
+                either = page.locator("#live-tabpanel-polls").or_(page.get_by_text("Join anonymously"))
+                either.first.wait_for(state="attached", timeout=30000)
+            except Exception:
+                print("Neither panel nor login screen found after 30s", flush=True)
+            try_join(page)
             try:
                 page.wait_for_selector("#live-tabpanel-polls", state="attached", timeout=45000)
             except Exception:
@@ -105,6 +124,7 @@ def run():
                 continue
 
             if not ready:
+                try_join(page)
                 if not_ready_since is None:
                     not_ready_since = time.time()
                 if time.time() - not_ready_since > 30:
