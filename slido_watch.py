@@ -9,7 +9,7 @@ if code.startswith("http"):
 else:
     URL = "https://app.sli.do/event/" + code.lstrip("#")
 DURATION = 90 * 60
-WATCHER_NAME = "."
+WATCHER_NAME = "A A"
 
 
 def notify(msg, title="Slido watcher", priority="high"):
@@ -43,15 +43,17 @@ def try_join(page):
             anon.first.click(timeout=5000)
             print("Clicked Join anonymously (watcher only)", flush=True)
             return True
-        join = page.get_by_text("Join slido")
-        if join.count() > 0:
+        btn = page.locator("[data-testid='join-in-button']")
+        if btn.count() > 0:
             box = page.locator("input[type='text'], input:not([type])").first
-            box.fill(WATCHER_NAME, timeout=5000)
-            join.first.click(timeout=5000)
-            print("Filled name and clicked Join slido (watcher only)", flush=True)
+            box.click(timeout=5000)
+            box.press_sequentially(WATCHER_NAME, delay=80)
+            page.wait_for_timeout(500)
+            btn.first.click(timeout=8000)
+            print("Typed name and clicked Join slido (watcher only)", flush=True)
             return True
     except Exception as e:
-        print("join failed:", e, flush=True)
+        print("join failed:", str(e)[:200], flush=True)
     return False
 
 
@@ -70,7 +72,7 @@ def run():
                 status = resp.status if resp else None
                 print("HTTP status:", status, flush=True)
             except Exception as e:
-                print("goto failed:", e, flush=True)
+                print("goto failed:", str(e)[:200], flush=True)
             try:
                 either = page.locator("#live-tabpanel-polls").or_(page.get_by_text("Join anonymously")).or_(page.get_by_text("Join slido"))
                 either.first.wait_for(state="attached", timeout=30000)
@@ -90,7 +92,7 @@ def run():
             try:
                 body = page.inner_text("body")[:300].replace("\n", " | ")
             except Exception as e:
-                print("Body read failed:", e, flush=True)
+                print("Body read failed:", str(e)[:200], flush=True)
             print("Body:", body, flush=True)
             return body
 
@@ -127,7 +129,7 @@ def run():
                 is_open = page.evaluate(PANEL_OPEN_JS)
                 fired = page.evaluate(FIRED_JS)
             except Exception as e:
-                print("check failed:", e, flush=True)
+                print("check failed:", str(e)[:200], flush=True)
                 time.sleep(1)
                 continue
 
