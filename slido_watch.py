@@ -9,6 +9,7 @@ if code.startswith("http"):
 else:
     URL = "https://app.sli.do/event/" + code.lstrip("#")
 DURATION = 90 * 60
+WATCHER_NAME = "."
 
 
 def notify(msg, title="Slido watcher", priority="high"):
@@ -35,12 +36,19 @@ FIRED_JS = "() => (window.__w ? window.__w.fired : 0)"
 
 
 def try_join(page):
-    # Clicks "Join anonymously" only if that login screen is showing
+    # Handles both login screens: "Join anonymously" or "Full name" + "Join slido"
     try:
-        btn = page.get_by_text("Join anonymously")
-        if btn.count() > 0:
-            btn.first.click(timeout=5000)
+        anon = page.get_by_text("Join anonymously")
+        if anon.count() > 0:
+            anon.first.click(timeout=5000)
             print("Clicked Join anonymously (watcher only)", flush=True)
+            return True
+        join = page.get_by_text("Join slido")
+        if join.count() > 0:
+            box = page.locator("input[type='text'], input:not([type])").first
+            box.fill(WATCHER_NAME, timeout=5000)
+            join.first.click(timeout=5000)
+            print("Filled name and clicked Join slido (watcher only)", flush=True)
             return True
     except Exception as e:
         print("join failed:", e, flush=True)
@@ -64,7 +72,7 @@ def run():
             except Exception as e:
                 print("goto failed:", e, flush=True)
             try:
-                either = page.locator("#live-tabpanel-polls").or_(page.get_by_text("Join anonymously"))
+                either = page.locator("#live-tabpanel-polls").or_(page.get_by_text("Join anonymously")).or_(page.get_by_text("Join slido"))
                 either.first.wait_for(state="attached", timeout=30000)
             except Exception:
                 print("Neither panel nor login screen found after 30s", flush=True)
